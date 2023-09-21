@@ -5,7 +5,7 @@
 ![](docs/ezgif.com-video-to-gif.gif)
 
 ## TODO:
-- [ X] mvp
+- [X] mvp
 - [ ] caching
 - [ ] styles
 - [ ] notifications
