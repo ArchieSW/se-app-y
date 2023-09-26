@@ -1,4 +1,12 @@
-import { StatusBar } from "expo-status-bar";
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import {
+  createNativeStackNavigator,
+  NativeStackNavigationProp,
+} from '@react-navigation/native-stack';
+import * as DocumentPicker from 'expo-document-picker';
+import * as fs from 'expo-file-system';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect, useState } from 'react';
 import {
   Button,
   SafeAreaView,
@@ -6,16 +14,8 @@ import {
   StyleSheet,
   Text,
   View,
-} from "react-native";
-import * as DocumentPicker from "expo-document-picker";
-import * as fs from "expo-file-system";
-import { NavigationContainer, useNavigation } from "@react-navigation/native";
-import {
-  createNativeStackNavigator,
-  NativeStackNavigationProp,
-} from "@react-navigation/native-stack";
-import { useEffect, useState } from "react";
-import * as XLSX from "xlsx";
+} from 'react-native';
+import * as XLSX from 'xlsx';
 
 type StackParams = {
   TimetableScreen: undefined;
@@ -34,8 +34,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollView: {
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   text: {
     fontSize: 42,
@@ -44,21 +44,21 @@ const styles = StyleSheet.create({
 
 function convertSheetToSchedule(
   sheet: SheetRowObject[],
-  choosedGroup: string,
+  chosenGroup: string,
 ): string[][] {
-  const KEYS_TO_FOUND = ["Дни", "Время", choosedGroup];
+  const KEYS_TO_FOUND = ['Дни', 'Время', chosenGroup];
   const foundKeys: { [k: string]: keyof SheetRowObject } = {};
   sheet.forEach((row) => {
-    var addNext = false;
+    let addNext = false;
     let key: keyof typeof row;
     for (key in row) {
       const element = row[key];
-      if (typeof element == "number") {
+      if (typeof element == 'number') {
         continue;
       }
       if (KEYS_TO_FOUND.includes(element)) {
         foundKeys[element] = key;
-        if (row[key] === choosedGroup) {
+        if (row[key] === chosenGroup) {
           addNext = true;
         }
       } else if (addNext) {
@@ -67,46 +67,52 @@ function convertSheetToSchedule(
       }
     }
   });
-  console.log("Found keys: " + JSON.stringify(foundKeys));
+  console.log('Found keys: ' + JSON.stringify(foundKeys));
   let prevDay: string | null = null;
-  return sheet.map((row) => {
-    // console.log(row);
-    return Object.values(foundKeys).map<undefined | number | string>((key) => {
-      const element = row[key];
-      if (key === foundKeys["Дни"]) {
-        if (typeof element === "undefined" || !(key in row)) {
-          if (!prevDay) {
-            return undefined;
+  return sheet
+    .map((row) => {
+      // console.log(row);
+      return Object.values(foundKeys).map<undefined | number | string>(
+        (key) => {
+          const element = row[key];
+          if (key === foundKeys['Дни']) {
+            if (typeof element === 'undefined' || !(key in row)) {
+              if (!prevDay) {
+                return undefined;
+              }
+              return prevDay;
+            } else {
+              if (typeof element !== 'string') {
+                throw Error('sheet format is broken. Under Дни number');
+              }
+              prevDay = element;
+            }
+          } else if (
+            key === foundKeys['Время'] &&
+            typeof element === 'undefined'
+          ) {
+            return '';
           }
-          return prevDay;
-        } else {
-          if (typeof element !== "string") {
-            throw "sheet format is broken. Under Дни number";
+          if (typeof element === 'string') {
+            return element.replace(/\n/g, ' ');
+          } else {
+            return element;
           }
-          prevDay = element;
-        }
-      } else if (key === foundKeys["Время"] && typeof element === "undefined") {
-        return "";
-      }
-      if (typeof element === "string") {
-        return element.replace(/\n/g, " ");
-      } else {
-        return element;
-      }
-    });
-  })
-    .filter((value) => typeof value !== "undefined")
+        },
+      );
+    })
+    .filter((value) => typeof value !== 'undefined')
     .filter((value) =>
-      value.every((x) => typeof x === "string" || typeof x === "number")
+      value.every((x) => typeof x === 'string' || typeof x === 'number'),
     )
-    .map((value) => value.map((x) => x!!.toString()));
+    .map((value) => value.map((x) => x!.toString()));
 }
 
 function getGroupsFromSheet(sheet: SheetRowObject[]): string[] {
   const pattern = /^(\d{2})([А-Я]{1,4})(\d{1})$/;
   const groups: string[] = [];
   for (const row of sheet) {
-    var stop = false;
+    let stop = false;
     Object.values(row)
       .filter((value): value is string => typeof value === 'string')
       .forEach((item) => {
@@ -126,7 +132,7 @@ function groupBy<S, T extends keyof any>(
   sequence: S[],
   tagGetter: (item: S) => T,
 ): { [K in T]: S[] } {
-  let res = {} as { [K in T]: S[] };
+  const res = {} as { [K in T]: S[] };
   for (const kek of sequence) {
     const tag = tagGetter(kek);
     if (tag in res) {
@@ -144,37 +150,36 @@ type SheetComponentProps = {
 };
 
 // TODO: extend this type
-type Letters = "A" | "B" | "C" | "D" | "E" | "F";
+type Letters = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
 type SheetRowObject = { [K in Letters]: string | number };
 
 function Sheet({ workbook, name }: SheetComponentProps) {
   const sheet = XLSX.utils.sheet_to_json<SheetRowObject>(
     workbook.Sheets[name],
     {
-      header: "A",
+      header: 'A',
     },
   );
-  const [isGroupChoosed, setIsGroupChoosed] = useState(false);
-  const [choosedGroupName, setChoosedGroupName] = useState("");
-  if (isGroupChoosed) {
-    const schedule = convertSheetToSchedule(sheet, choosedGroupName);
-    const groupedShedule = groupBy(schedule, (arr) => arr[0]);
-    console.log(groupedShedule);
+  const [isGroupChosen, setIsGroupChosen] = useState(false);
+  const [chosenGroupName, setChosenGroupName] = useState('');
+  if (isGroupChosen) {
+    const schedule = convertSheetToSchedule(sheet, chosenGroupName);
+    const groupedSchedule = groupBy(schedule, (arr) => arr[0]);
+    console.log(groupedSchedule);
     return (
       <SafeAreaView style={styles.container}>
-        <ScrollView
-          contentContainerStyle={styles.scrollView}
-        >
-          {groupedShedule && Object.keys(groupedShedule).map((item, idx) => {
-            return (
-              <View key={idx}>
-                <Text>{item}</Text>
-                {groupedShedule[item].map((arr, i) => (
-                  <Button key={i} title={arr.slice(1).join(" ")} />
-                ))}
-              </View>
-            );
-          })}
+        <ScrollView contentContainerStyle={styles.scrollView}>
+          {groupedSchedule &&
+            Object.keys(groupedSchedule).map((item, idx) => {
+              return (
+                <View key={idx}>
+                  <Text>{item}</Text>
+                  {groupedSchedule[item].map((arr, i) => (
+                    <Button key={i} title={arr.slice(1).join(' ')} />
+                  ))}
+                </View>
+              );
+            })}
         </ScrollView>
       </SafeAreaView>
     );
@@ -185,26 +190,26 @@ function Sheet({ workbook, name }: SheetComponentProps) {
     return (
       <View>
         <Text>Choose your group</Text>
-        {groups && groups.map((name, i) => {
-          return (
-            <Button
-              key={i}
-              title={name}
-              onPress={() => {
-                setIsGroupChoosed(true);
-                setChoosedGroupName(name);
-                console.log("Choosed name " + name);
-              }}
-            />
-          );
-        })}
+        {groups &&
+          groups.map((name, i) => {
+            return (
+              <Button
+                key={i}
+                title={name}
+                onPress={() => {
+                  setIsGroupChosen(true);
+                  setChosenGroupName(name);
+                  console.log('Chosen name ' + name);
+                }}
+              />
+            );
+          })}
       </View>
     );
   }
 }
 
 function TimetableScreen() {
-  const navigation = useGlobalNavigation();
   const [parsedDocument, setParsedDocument] = useState<XLSX.WorkBook | null>(
     null,
   );
@@ -215,20 +220,20 @@ function TimetableScreen() {
         return;
       }
       const uri = doc.assets[0].uri;
-      const docString = await fs.readAsStringAsync(uri, { encoding: "base64" });
-      const workbook = XLSX.read(docString, { type: "base64" });
+      const docString = await fs.readAsStringAsync(uri, { encoding: 'base64' });
+      const workbook = XLSX.read(docString, { type: 'base64' });
       setDocument(workbook);
     };
     fetchDoc(setParsedDocument);
   }, []);
 
-  const [isSheetChoosed, setIsSheetChoosed] = useState(false);
-  const [choosedSheetName, setChoosedSheetName] = useState("");
-  if (isSheetChoosed) {
+  const [isSheetChosen, setIsSheetChosen] = useState(false);
+  const [chosenSheetName, setChosenSheetName] = useState('');
+  if (isSheetChosen) {
     if (parsedDocument == null) {
       return <Text>Error while parsing document</Text>;
     }
-    return <Sheet workbook={parsedDocument} name={choosedSheetName} />;
+    return <Sheet workbook={parsedDocument} name={chosenSheetName} />;
   } else {
     if (!parsedDocument) {
       return <Text>Parsing data...</Text>;
@@ -236,18 +241,19 @@ function TimetableScreen() {
     return (
       <View>
         <Text>Choose your sheet:</Text>
-        {parsedDocument && parsedDocument.SheetNames.map((x, i) => {
-          return (
-            <Button
-              title={x}
-              key={i}
-              onPress={() => {
-                setIsSheetChoosed(true);
-                setChoosedSheetName(x);
-              }}
-            />
-          );
-        })}
+        {parsedDocument &&
+          parsedDocument.SheetNames.map((x, i) => {
+            return (
+              <Button
+                title={x}
+                key={i}
+                onPress={() => {
+                  setIsSheetChosen(true);
+                  setChosenSheetName(x);
+                }}
+              />
+            );
+          })}
       </View>
     );
   }
@@ -261,7 +267,7 @@ function ChooseDocumentScreen() {
       <StatusBar style="auto" />
       <Button
         title="choose your document"
-        onPress={() => navigation.navigate("TimetableScreen")}
+        onPress={() => navigation.navigate('TimetableScreen')}
       />
     </View>
   );
