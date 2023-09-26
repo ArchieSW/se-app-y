@@ -53,7 +53,7 @@ function convertSheetToSchedule(
     let key: keyof typeof row;
     for (key in row) {
       const element = row[key];
-      if (typeof element == 'number') {
+      if (typeof element === 'number') {
         continue;
       }
       if (KEYS_TO_FOUND.includes(element)) {
