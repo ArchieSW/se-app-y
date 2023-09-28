@@ -1,57 +1,47 @@
 import * as fs from 'expo-file-system';
 import { useEffect, useState } from 'react';
-import { Button, Text, View } from 'react-native';
+import { Button, ScrollView, Text, View } from 'react-native';
 import * as XLSX from 'xlsx';
 
 import { handleDocument } from '../Utils';
 import { Sheet } from '../components/Sheet';
+import { useScheduleStore } from '../stores/Schedule';
 
 export function TimetableScreen() {
-  const [parsedDocument, setParsedDocument] = useState<XLSX.WorkBook | null>(
-    null,
-  );
+  const updateSchedule = useScheduleStore((state) => state.updateSchedule);
   useEffect(() => {
-    const fetchDoc = async (setDocument: typeof setParsedDocument) => {
-      const doc = await handleDocument();
-      if (doc.assets == null) {
-        return;
-      }
-      const uri = doc.assets[0].uri;
-      const docString = await fs.readAsStringAsync(uri, { encoding: 'base64' });
-      const workbook = XLSX.read(docString, { type: 'base64' });
-      setDocument(workbook);
-    };
-    fetchDoc(setParsedDocument);
+    updateSchedule();
   }, []);
-
-  const [isSheetChosen, setIsSheetChosen] = useState(false);
-  const [chosenSheetName, setChosenSheetName] = useState('');
-  if (isSheetChosen) {
-    if (parsedDocument == null) {
-      return <Text>Error while parsing document</Text>;
-    }
-    return <Sheet workbook={parsedDocument} name={chosenSheetName} />;
-  } else {
-    if (!parsedDocument) {
-      return <Text>Parsing data...</Text>;
-    }
-    return (
-      <View>
-        <Text>Choose your sheet:</Text>
-        {parsedDocument &&
-          parsedDocument.SheetNames.map((x, i) => {
-            return (
-              <Button
-                title={x}
-                key={i}
-                onPress={() => {
-                  setIsSheetChosen(true);
-                  setChosenSheetName(x);
-                }}
-              />
-            );
-          })}
-      </View>
-    );
-  }
+  const schedule = useScheduleStore((state) => state.years);
+  return (
+    <View>
+      {schedule.map((value, idx) => {
+        return (
+          <ScrollView key={'view1' + idx}>
+            <Text>{value.yearName}</Text>
+            {value.groups.map((group, idx) => {
+              return (
+                <View key={'view2' + idx}>
+                  {Object.keys(group).map((groupName, idx) => {
+                    return (
+                      <View key={'view3' + idx}>
+                        <Text>{groupName}</Text>
+                        {group[groupName].map((lesson, idx) => {
+                          return (
+                            <View key={'view4 ' + idx}>
+                              <Text> {Object.values(lesson).concat(' ')} </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })}
+          </ScrollView>
+        );
+      })}
+    </View>
+  );
 }
